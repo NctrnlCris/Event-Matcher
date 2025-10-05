@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+// Database imports and configuration
 const firebaseConfig = {
     apiKey: "AIzaSyD-i24KhVy-1_ARXhBPaUT3FJV1-lQ9cKE",
     authDomain: "eventmatcher-b228a.firebaseapp.com",
@@ -15,14 +15,15 @@ const firebaseConfig = {
 let db;
 let auth;
 let isAuthReady = false;
+const UNIVERSITY_LOGO_URL = "ubc-logo.png"
 
-window.App = {
+window.App = { // All the data that will be remembered
     db: null,
     auth: null,
     userId: null,
     isAuthReady: false,
-    unavailableTimes: {},
-    currentWeekStart: new Date(),
+    unavailableTimes: {}, // Stores all unavailable timeslots
+    currentWeekStart: new Date(), // Current week showing
     interests: [
         'Technology', 'Finance', 'Biology', 'Sports', 'Food',
         'Gaming', 'Volunteering', 'Climbing', 'Running', 'Engineering',
@@ -33,6 +34,7 @@ window.App = {
     allEvents: []
 };
 
+// Deals with complications of time and date
 const getStartOfWeek = (date) => {
     const d = new Date(date);
     const day = d.getDay();
@@ -48,6 +50,7 @@ const formatTimeKey = (date, hour) => {
     return `${d.toISOString().substring(0, 10)}-${hour}`;
 };
 
+// Parsing time is hard due to how it is stored in database
 const parseTime = (timeStr) => {
     try {
         const parts = timeStr.toUpperCase().trim().split(' ');
@@ -82,6 +85,7 @@ const parseTime = (timeStr) => {
     }
 };
 
+// Renders calendar for each week and loops several times for each hour of each day
 const renderCalendar = () => {
     const calendarGrid = document.getElementById('calendar-grid');
     if (!calendarGrid) return;
@@ -148,6 +152,7 @@ const renderCalendar = () => {
     document.getElementById('week-display').textContent = `${weekStartStr} - ${weekEndStr}`;
 };
 
+// Handles when user clicks on a timeslot
 const toggleAvailability = (slot, timeKey) => {
     if (App.unavailableTimes[timeKey]) {
         delete App.unavailableTimes[timeKey];
@@ -160,6 +165,7 @@ const toggleAvailability = (slot, timeKey) => {
     }
 };
 
+// Moving week left and right
 const changeWeek = (direction) => {
     const nextWeek = new Date(App.currentWeekStart);
     nextWeek.setDate(App.currentWeekStart.getDate() + (direction * 7));
@@ -204,7 +210,7 @@ const findMatchingEvents = () => {
     resultsContainer.innerHTML = '<p class="text-center text-gray-500 font-semibold">Searching for conflict-free events...</p>';
     
     if (App.selectedInterests.size === 0) {
-        resultsContainer.innerHTML = '<p class="text-center text-red-500 font-semibold">Please select at least one interest to find events.</p>';
+        resultsContainer.innerHTML = '<p class="text-center text-red-500 font-semibold text-outline">Please select at least one interest to find events.</p>';
         return;
     }
 
@@ -287,23 +293,34 @@ const findMatchingEvents = () => {
             const dateDisplay = new Date(event.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
             
             htmlContent += `
-                <div class="matched-event-box">
-                    <h3 class="text-lg font-bold text-indigo-900">${event.name}</h3>
-                    <p class="text-sm text-gray-700 mt-1">
-                        <span class="font-semibold">${event.club}</span> | 
-                        ${dateDisplay}, ${event.startTime} - ${event.endTime}
-                    </p>
-                    <p class="text-xs text-indigo-600 mt-2 font-mono">
-                        Tags: ${Array.isArray(event.tags) ? event.tags.join(', ') : event.tags}
-                    </p>
-                    <p class="mt-2 text-gray-800">${event.description}</p>
-                </div>
-            `;
+    <div class="matched-event-box flex justify-between items-start p-4 border-b border-gray-200">
+        
+        <div class="flex-grow pr-4"> 
+            <h3 class="text-lg font-bold text-indigo-900">${event.name}</h3>
+            <p class="text-sm text-gray-700 mt-1">
+                <span class="font-semibold">${event.club}</span> | 
+                ${dateDisplay}, ${event.startTime} - ${event.endTime}
+            </p>
+            <p class="text-xs text-indigo-600 mt-2 font-mono">
+                Tags: ${Array.isArray(event.tags) ? event.tags.join(', ') : event.tags}
+            </p>
+            <p class="mt-2 text-gray-800">${event.description}</p>
+        </div>
+        
+        <img 
+            src="${UNIVERSITY_LOGO_URL}" 
+            alt="University Logo" 
+            class="h-24 w-24 flex-shrink-0 object-contain ml-4 opacity-75" 
+        />
+        
+    </div> 
+    `;
         });
         resultsContainer.innerHTML = htmlContent;
     }
 };
 
+// Database setup function
 const setupFirebase = async () => {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
@@ -345,6 +362,7 @@ const setupFirebase = async () => {
     });
 };
 
+// Ensures event data is updated
 const setupEventListener = () => {
     const eventsCollectionRef = collection(App.db, 'events');
     

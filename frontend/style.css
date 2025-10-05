@@ -6,8 +6,21 @@ White: #FFFFFF
 /* Custom styles for the calendar and dark mode */
 body {
     font-family: 'Inter', sans-serif;
-    background-color: #f7fafc; /* Light gray background */
+    /*background-color: #f7fafc; /* Light gray background */
 }
+#first-page {
+    
+    background-image: url("Copy_1_HH.jpeg"); 
+    background-size: cover;
+    background-position: center top -30px;
+    background-position: center bottom -30px; /* resizing to fit page */
+    background-position: center 80%;
+    background-repeat: no-repeat;
+    
+    background-color: transparent; 
+}
+
+
 
 /* Time slot style - fixed width and height for perfect alignment */
 .time-slot {
@@ -21,14 +34,13 @@ body {
 .unavailable {
     background-color: #ef4444; /* Red-500 */
     color: white;
-    border-color: #dc2626;
 }
 .available {
     background-color: #d1d5db; /* Gray-300 */
     color: #1f2937;
 }
 
-/* Day Label Column (STICKY LEFT) */
+/* Day Label Column (Left) */
 .time-header {
     width: 90px; /* Fixed width */
     height: 40px; /* Fixed height for alignment with slot */
@@ -48,7 +60,6 @@ body {
     font-weight: 600;
 }
 
-/* Time Label Row (STICKY TOP) */
 .time-header-slot {
     width: 50px;
     height: 40px; /* Fixed height for alignment with day column */
@@ -64,7 +75,7 @@ body {
     border-bottom: 1px solid #d1d5db;
 }
 
-/* General card styling (Replicates Tailwind classes for reuse) */
+/* General card styling */
 .card {
     background-color: white;
     padding: 24px;
@@ -78,13 +89,13 @@ body {
     padding-bottom: 0.75rem;
     font-weight: 600;
     color: white;
-    background-color: #4f46e5;
+    background-color: #375F7D;
     border-radius: 0.5rem;
     transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
     transition-duration: 0.15s;
 }
 .btn-primary:hover {
-    background-color: #4338ca;
+    background-color: #FFA40A;
 }
 
 #btn-student {
@@ -154,4 +165,10 @@ body {
 /* Individual Day Row */
 .day-row {
     border-top: 1px solid #e5e7eb;
+}
+.matching-event {
+    color: white;
+    font-weight: 200;
+    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+    font-size: large;
 }
