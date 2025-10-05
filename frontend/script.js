@@ -2,8 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Firebase Configuration
-// NOTE: Using a placeholder key for demonstration. Replace with your actual key.
 const firebaseConfig = {
     apiKey: "AIzaSyD-i24KhVy-1_ARXhBPaUT3FJV1-lQ9cKE",
     authDomain: "eventmatcher-b228a.firebaseapp.com",
@@ -18,7 +16,6 @@ let db;
 let auth;
 let isAuthReady = false;
 
-// The core application logic object
 window.App = {
     db: null,
     auth: null,
@@ -33,15 +30,12 @@ window.App = {
         'Cooking', 'Culture', 'Reading', 'Weightlifting', 'Writing'
     ],
     selectedInterests: new Set(),
-    allEvents: [] // Stores all club events from Firestore
+    allEvents: []
 };
-
-// --- Utility Functions ---
 
 const getStartOfWeek = (date) => {
     const d = new Date(date);
-    const day = d.getDay(); // 0 (Sun) to 6 (Sat)
-    // Calculate difference to get back to Monday (1). 
+    const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     d.setDate(diff);
     d.setHours(0, 0, 0, 0);
@@ -78,7 +72,7 @@ const parseTime = (timeStr) => {
         if (modifier === 'PM' && hours24 !== 12) {
             hours24 += 12;
         } else if (modifier === 'AM' && hours24 === 12) {
-            hours24 = 0; // 12 AM is hour 0
+            hours24 = 0;
         }
         
         return hours24;
@@ -88,23 +82,18 @@ const parseTime = (timeStr) => {
     }
 };
 
-// --- CALENDAR RENDERING --- 
 const renderCalendar = () => {
-    // ... (Calendar logic remains the same)
     const calendarGrid = document.getElementById('calendar-grid');
     if (!calendarGrid) return;
     calendarGrid.innerHTML = '';
 
     const startOfWeek = getStartOfWeek(App.currentWeekStart);
     
-    // 24 Hour Time Headers
     const timeHeaderRow = document.createElement('div');
     timeHeaderRow.className = 'flex'; 
     
-    // Top-left corner placeholder - Z-index 30 ensures it's above both sticky axis
     timeHeaderRow.innerHTML = '<div class="time-header z-30 bg-gray-200">Time / Day</div>'; 
 
-    // Time loop from 0 (12 AM) to 23 (11 PM)
     for (let hour = 0; hour <= 23; hour++) {
         const timeStr = hour === 0 ? '12 AM' 
                                  : hour < 12 ? `${hour} AM` 
@@ -119,10 +108,8 @@ const renderCalendar = () => {
     }
     calendarGrid.appendChild(timeHeaderRow);
 
-    // 7 Days: Mon, Tue, Wed, Thu, Fri, Sat, Sun
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     
-    // Render Days (0 to 6)
     for (let i = 0; i < 7; i++) {
         const date = new Date(startOfWeek);
         date.setDate(startOfWeek.getDate() + i);
@@ -131,16 +118,13 @@ const renderCalendar = () => {
         const dayRow = document.createElement('div');
         dayRow.className = 'flex items-stretch day-row';
         
-        // First element is the sticky day label
         dayRow.innerHTML = `<div class="time-header">${days[i]}<span class="text-gray-500 ml-1 font-normal">(${dateStr})</span></div>`;
 
-        // Hour loop from 0 to 23
         for (let hour = 0; hour <= 23; hour++) {
             const timeKey = formatTimeKey(date, hour);
             const isUnavailable = App.unavailableTimes[timeKey];
             
             const slot = document.createElement('div');
-            // time-slot class ensures fixed width for alignment
             slot.className = `time-slot rounded-sm 
                               ${isUnavailable ? 'unavailable' : 'available'}`;
             slot.dataset.timeKey = timeKey;
@@ -156,10 +140,9 @@ const renderCalendar = () => {
         calendarGrid.appendChild(dayRow);
     }
 
-    // Update week header
     const weekStartStr = startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const weekEnd = new Date(startOfWeek);
-    weekEnd.setDate(startOfWeek.getDate() + 6); // End on Sunday
+    weekEnd.setDate(startOfWeek.getDate() + 6);
     const weekEndStr = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     
     document.getElementById('week-display').textContent = `${weekStartStr} - ${weekEndStr}`;
@@ -184,9 +167,7 @@ const changeWeek = (direction) => {
     renderCalendar();
 };
 
-// --- INTERESTS RENDERING ---
 const renderInterests = () => {
-    // ... (Interests logic remains the same)
     const interestsContainer = document.getElementById('interests-container');
     if (!interestsContainer) return;
     interestsContainer.innerHTML = '';
@@ -216,9 +197,7 @@ const renderInterests = () => {
     });
 };
 
-// --- EVENT MATCHING LOGIC ---
 const findMatchingEvents = () => {
-    // ... (Matching logic remains the same)
     console.log("-> Executing findMatchingEvents...");
     
     const resultsContainer = document.getElementById('event-results-container'); 
@@ -236,7 +215,6 @@ const findMatchingEvents = () => {
     const matchingEvents = App.allEvents.filter(event => {
         const eventName = event.name || 'Unknown Event';
 
-        // 1. Check Interest Match
         const rawTags = event.tags;
         let eventTagsLowercased = [];
 
@@ -252,7 +230,6 @@ const findMatchingEvents = () => {
             return false; 
         }
         
-        // 2. Check Time Conflict
         if (!event.date || !event.startTime || !event.endTime) {
             return false;
         }
@@ -264,17 +241,14 @@ const findMatchingEvents = () => {
                 return false;
             }
 
-            // Determine event start and end hours in 24h format
             const startHour = parseTime(event.startTime);
             const endHour = parseTime(event.endTime);
 
-            // Validation for time range
             if (startHour === null || endHour === null || startHour >= endHour || startHour < 0 || endHour > 24) {
                 console.log(`[FILTERED] ${eventName}: Invalid time format or duration.`);
                 return false;
             }
             
-            // Check if event is in the current calendar week
             const currentWeekStart = getStartOfWeek(App.currentWeekStart);
             const currentWeekEnd = new Date(currentWeekStart);
             currentWeekEnd.setDate(currentWeekStart.getDate() + 7); 
@@ -286,18 +260,16 @@ const findMatchingEvents = () => {
                 return false;
             }
 
-            // Loop through every hourly slot the event occupies
             for (let currentHour = startHour; currentHour < endHour; currentHour++) {
                 
                 const eventTimeKey = formatTimeKey(eventDate, currentHour);
 
                 if (App.unavailableTimes[eventTimeKey]) {
-                    // Conflict found
                     return false; 
                 }
             }
             
-            return true; // No conflicts found
+            return true;
 
         } catch (e) {
             console.error("Error processing event date/time:", eventName, e);
@@ -305,7 +277,6 @@ const findMatchingEvents = () => {
         }
     });
 
-    // Display Results
     resultsContainer.innerHTML = ''; 
     
     if (matchingEvents.length === 0) {
@@ -333,9 +304,7 @@ const findMatchingEvents = () => {
     }
 };
 
-// --- FIREBASE AND AUTH SETUP ---
 const setupFirebase = async () => {
-    // ... (Firebase setup logic remains the same)
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
@@ -377,7 +346,6 @@ const setupFirebase = async () => {
 };
 
 const setupEventListener = () => {
-    // ... (Firestore listener setup remains the same)
     const eventsCollectionRef = collection(App.db, 'events');
     
     onSnapshot(eventsCollectionRef, (snapshot) => {
@@ -394,7 +362,6 @@ const setupEventListener = () => {
 };
 
 const handleOrganizerSubmit = async (event) => {
-    // ... (Organizer form submission logic remains the same)
     event.preventDefault();
     
     const form = event.target;
@@ -452,13 +419,11 @@ const handleOrganizerSubmit = async (event) => {
     }
 };
 
-// --- UI TOGGLING AND INITIALIZATION ---
 const showView = (viewId) => {
     document.getElementById('role-selection').classList.add('hidden');
     document.getElementById('student-view').classList.add('hidden');
     document.getElementById('organizer-view').classList.add('hidden');
     
-    // Use 'flex' for the main container if you want it centered with Tailwind (optional)
     document.getElementById(viewId).classList.remove('hidden');
     document.getElementById(viewId).classList.add('block');
     
@@ -472,37 +437,26 @@ const goBack = () => {
     showView('role-selection');
 };
 
-/**
- * Helper function to safely attach an event listener to an element ID.
- * Logs an error if the element is not found, preventing script crashes.
- */
 const attachListener = (id, eventType, handler) => {
     const element = document.getElementById(id);
     if (element) {
         element.addEventListener(eventType, handler);
     } else {
-        // This will print to your browser's console if an ID is misspelled
         console.error(`Element not found for ID: ${id}. Cannot attach listener. This is likely why the buttons are failing.`);
     }
 };
 
-// Use an event listener for the DOMContentLoaded event to ensure all elements exist before attaching listeners
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Initial Setup
     App.currentWeekStart = getStartOfWeek(new Date());
 
-    // 2. Attach Listeners for buttons using the safe helper
     console.log("Attempting to attach event listeners...");
     
-    // Role Selection Buttons
     attachListener('btn-student', 'click', () => showView('student-view'));
     attachListener('btn-organizer', 'click', () => showView('organizer-view'));
     
-    // Go Back Buttons
     attachListener('back-to-role-student', 'click', goBack);
     attachListener('back-to-role-organizer', 'click', goBack);
 
-    // Student View Calendar/Matching buttons
     attachListener('prev-week', 'click', () => changeWeek(-1));
     attachListener('next-week', 'click', () => changeWeek(1));
     
@@ -511,9 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
         findMatchingEvents();
     });
 
-    // Organizer Form submission
     attachListener('organizer-form', 'submit', handleOrganizerSubmit);
     
-    // 3. Initialize Firebase and start listening for events
     setupFirebase();
 });
