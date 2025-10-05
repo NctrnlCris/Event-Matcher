@@ -14,7 +14,7 @@ body {
     background-size: cover;
     background-position: center top -30px;
     background-position: center bottom -30px; /* resizing to fit page */
-    background-position: center 80%;
+    background-position: center 75%;
     background-repeat: no-repeat;
     
     background-color: transparent; 
