@@ -45,8 +45,3 @@
 
 
 
-
-
-Tools
-
-Gemini can make mistakes, so double-check it
