@@ -68,7 +68,7 @@
              border-bottom: 1px solid #d1d5db;
         }
 
-        /* General card styling (No Change) */
+        /* General card styling */
         .card {
             background-color: white;
             padding: 24px;
@@ -157,8 +157,10 @@
             unavailableTimes: {}, 
             currentWeekStart: new Date(),
             interests: [
-                'Technology', 'Finance', 'Design', 'Engineering', 'Arts',
-                'Coding', 'Gaming', 'Volunteering', 'Health', 'Sports', 'Environment'
+                'Technology', 'Finance', 'Biology', 'Sports', 'Food',
+                'Gaming', 'Volunteering', 'Climbing', 'Running', 'Engineering',
+                'Animals', 'UI/UX Design', 'Arts', 'Music', 'Environment',
+                'Cooking', 'Culture', 'Reading', 'Weightlifting', 'Writing'
             ],
             selectedInterests: new Set(),
             allEvents: [] // Stores all club events from Firestore
@@ -215,7 +217,7 @@
             }
         };
 
-        // --- CALENDAR RENDERING (UPDATED FOR STICKINESS AND ALIGNMENT) --- 
+        // --- CALENDAR RENDERING --- 
         const renderCalendar = () => {
             const calendarGrid = document.getElementById('calendar-grid');
             if (!calendarGrid) return;
@@ -587,6 +589,10 @@
                 renderInterests();
             }
         };
+
+        const goBack = () => {
+            showView('role-selection');
+        };
         
         // Setup function to run after the DOM loads
         window.onload = () => {
@@ -594,6 +600,11 @@
 
             document.getElementById('btn-student').addEventListener('click', () => showView('student-view'));
             document.getElementById('btn-organizer').addEventListener('click', () => showView('organizer-view'));
+            
+            // Go Back Buttons
+            document.getElementById('back-to-role-student').addEventListener('click', goBack);
+            document.getElementById('back-to-role-organizer').addEventListener('click', goBack);
+
             document.getElementById('prev-week').addEventListener('click', () => changeWeek(-1));
             document.getElementById('next-week').addEventListener('click', () => changeWeek(1));
             
@@ -608,6 +619,7 @@
         };
         
         window.changeWeek = changeWeek;
+        window.goBack = goBack;
     </script>
 </head>
 
@@ -632,7 +644,14 @@
 
         <!-- STUDENT VIEW -->
         <div id="student-view" class="hidden">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Student Dashboard</h2>
+            <div class="flex justify-between items-center mb-6">
+                 <h2 class="text-2xl font-bold text-gray-800">Student Dashboard</h2>
+                 <button id="back-to-role-student" class="flex items-center text-sm font-semibold text-gray-600 hover:text-indigo-600 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    Back to Role Selection
+                </button>
+            </div>
+            
 
             <!-- CALENDAR -->
             <div class="card mb-8">
@@ -688,7 +707,13 @@
 
         <!-- ORGANIZER VIEW -->
         <div id="organizer-view" class="hidden max-w-xl mx-auto">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Club Organizer: Post Event</h2>
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Club Organizer: Post Event</h2>
+                <button id="back-to-role-organizer" class="flex items-center text-sm font-semibold text-gray-600 hover:text-indigo-600 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    Back to Role Selection
+                </button>
+            </div>
             
             <div id="organizer-message" class="hidden p-3 mb-4 text-sm font-semibold text-white rounded-lg text-center"></div>
 
