@@ -152,7 +152,7 @@ const renderCalendar = () => {
     document.getElementById('week-display').textContent = `${weekStartStr} - ${weekEndStr}`;
 };
 
-// Handles when user clicks on a timeslot
+// Handles when user clicks on a timeslot and updates availability lists
 const toggleAvailability = (slot, timeKey) => {
     if (App.unavailableTimes[timeKey]) {
         delete App.unavailableTimes[timeKey];
