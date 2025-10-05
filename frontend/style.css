@@ -1,0 +1,118 @@
+/* Custom styles for the calendar and dark mode */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f7fafc; /* Light gray background */
+}
+
+/* Time slot style - fixed width and height for perfect alignment */
+.time-slot {
+    width: 50px; /* Fixed width for alignment */
+    height: 40px; /* Fixed height for alignment */
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background-color 0.1s;
+    border: 1px solid #e5e7eb; /* Light border */
+}
+.unavailable {
+    background-color: #ef4444; /* Red-500 */
+    color: white;
+    border-color: #dc2626;
+}
+.available {
+    background-color: #d1d5db; /* Gray-300 */
+    color: #1f2937;
+}
+
+/* Day Label Column (STICKY LEFT) */
+.time-header {
+    width: 90px; /* Fixed width */
+    height: 40px; /* Fixed height for alignment with slot */
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: #4b5563;
+    text-align: center;
+    
+    position: sticky;
+    left: 0; /* Stick to the left edge */
+    z-index: 20;
+    background-color: #f7fafc; /* Match scroll container background */
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+/* Time Label Row (STICKY TOP) */
+.time-header-slot {
+    width: 50px;
+    height: 40px; /* Fixed height for alignment with day column */
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    line-height: 40px; /* Vertically center the text */
+    text-align: center;
+    
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f7fafc;
+    border-bottom: 1px solid #d1d5db;
+}
+
+/* General card styling (Replicates Tailwind classes for reuse) */
+.card {
+    background-color: white;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+.btn-primary {
+    display: block;
+    width: 100%;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    font-weight: 600;
+    color: white;
+    background-color: #4f46e5;
+    border-radius: 0.5rem;
+    transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+    transition-duration: 0.15s;
+}
+.btn-primary:hover {
+    background-color: #4338ca;
+}
+.input-style {
+    padding: 0.5rem;
+    border-width: 1px;
+    border-color: #d1d5db;
+    border-radius: 0.375rem;
+    width: 100%;
+}
+.matched-event-box {
+    border: 2px solid #a5b4fc;
+    background-color: #f5f3ff;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+#event-results-container {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+/* Calendar Container - Allows horizontal scrolling for 24 hours, but prevents vertical scrolling for 7 days */
+#calendar-scroll-container {
+    height: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: 0.5rem;
+    background-color: #f7fafc;
+}
+/* Ensures the grid is wide enough to force horizontal scroll */
+#calendar-grid {
+    min-width: calc(90px + (24 * 50px)); /* 90px for day header + 24 slots * 50px width per slot */
+}
+/* Individual Day Row */
+.day-row {
+    border-top: 1px solid #e5e7eb;
+}
