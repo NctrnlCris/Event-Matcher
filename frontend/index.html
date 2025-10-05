@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Matcher</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the calendar and dark mode */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* Light gray background */
+        }
+        
+        /* Time slot style - fixed width and height for perfect alignment */
+        .time-slot {
+            width: 50px; /* Fixed width for alignment */
+            height: 40px; /* Fixed height for alignment */
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: background-color 0.1s;
+            border: 1px solid #e5e7eb; /* Light border */
+        }
+        .unavailable {
+            background-color: #ef4444; /* Red-500 */
+            color: white;
+            border-color: #dc2626;
+        }
+        .available {
+            background-color: #d1d5db; /* Gray-300 */
+            color: #1f2937;
+        }
+
+        /* Day Label Column (STICKY LEFT) */
+        .time-header {
+            width: 90px; /* Fixed width */
+            height: 40px; /* Fixed height for alignment with slot */
+            flex-shrink: 0;
+            font-size: 0.75rem;
+            color: #4b5563;
+            text-align: center; 
+            
+            position: sticky; 
+            left: 0; /* Stick to the left edge */
+            z-index: 20; 
+            background-color: #f7fafc; /* Match scroll container background */
+            border-right: 1px solid #e5e7eb; 
+            display: flex; 
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+        
+        /* Time Label Row (STICKY TOP) */
+        .time-header-slot {
+             width: 50px; 
+             height: 40px; /* Fixed height for alignment with day column */
+             flex-shrink: 0;
+             font-size: 0.75rem;
+             line-height: 40px; /* Vertically center the text */
+             text-align: center;
+             
+             position: sticky;
+             top: 0;
+             z-index: 10;
+             background-color: #f7fafc; 
+             border-bottom: 1px solid #d1d5db;
+        }
+
+        /* General card styling (No Change) */
+        .card {
+            background-color: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            display: block;
+            width: 100%;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            font-weight: 600;
+            color: white;
+            background-color: #4f46e5;
+            border-radius: 0.5rem;
+            transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+            transition-duration: 0.15s;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        .input-style {
+            padding: 0.5rem;
+            border-width: 1px;
+            border-color: #d1d5db;
+            border-radius: 0.375rem;
+            width: 100%;
+        }
+        .matched-event-box {
+            border: 2px solid #a5b4fc; 
+            background-color: #f5f3ff; 
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        #event-results-container {
+            max-height: 400px; 
+            overflow-y: auto; 
+            padding-right: 8px; 
+        }
+        /* Calendar Container - Allows horizontal scrolling for 24 hours, but prevents vertical scrolling for 7 days */
+        #calendar-scroll-container {
+            height: auto; 
+            overflow-x: auto; 
+            overflow-y: hidden; 
+            border-radius: 0.5rem;
+            background-color: #f7fafc; 
+        }
+        /* Ensures the grid is wide enough to force horizontal scroll */
+        #calendar-grid {
+            min-width: calc(90px + (24 * 50px)); /* 90px for day header + 24 slots * 50px width per slot */
+        }
+        /* Individual Day Row */
+        .day-row {
+            border-top: 1px solid #e5e7eb;
+        }
+    </style>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration (using the user-provided config)
+        const firebaseConfig = {
+            apiKey: "AIzaSyD-i24KhVy-1_ARXhBPaUT3FJV1-lQ9cKE",
+            authDomain: "eventmatcher-b228a.firebaseapp.com",
+            projectId: "eventmatcher-b228a",
+            storageBucket: "eventmatcher-b228a.firebasestorage.app",
+            messagingSenderId: "147997772201",
+            appId: "1:147997772201:web:80cb87a9feac15c97fdcb8",
+            measurementId: "G-3H7CY8NDND"
+        };
+        
+        let db;
+        let auth;
+        let isAuthReady = false;
+
+        // The core application logic object
+        window.App = {
+            db: null,
+            auth: null,
+            userId: null,
+            isAuthReady: false,
+            unavailableTimes: {}, 
+            currentWeekStart: new Date(),
+            interests: [
+                'Technology', 'Finance', 'Design', 'Engineering', 'Arts',
+                'Coding', 'Gaming', 'Volunteering', 'Health', 'Sports', 'Environment'
+            ],
+            selectedInterests: new Set(),
+            allEvents: [] // Stores all club events from Firestore
+        };
+
+        // Utility functions
+        const getStartOfWeek = (date) => {
+            const d = new Date(date);
+            const day = d.getDay(); // 0 (Sun) to 6 (Sat)
+            // Calculate difference to get back to Monday (1). 
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+            d.setDate(diff);
+            d.setHours(0, 0, 0, 0);
+            return d;
+        };
+
+        const formatTimeKey = (date, hour) => {
+            const d = new Date(date);
+            d.setHours(hour);
+            return `${d.toISOString().substring(0, 10)}-${hour}`;
+        };
+
+        const parseTime = (timeStr) => {
+            try {
+                const parts = timeStr.toUpperCase().trim().split(' ');
+                
+                let hours;
+                let modifier;
+
+                if (parts.length === 2) {
+                    [hours] = parts[0].split(':');
+                    modifier = parts[1];
+                } else if (parts.length === 1 && parts[0].includes(':')) {
+                    [hours] = parts[0].split(':');
+                    let hour24 = parseInt(hours, 10);
+                    if (hour24 >= 0 && hour24 <= 23) return hour24;
+                    return null; 
+                } else {
+                    return null;
+                }
+
+                let hours24 = parseInt(hours, 10);
+                
+                if (modifier === 'PM' && hours24 !== 12) {
+                    hours24 += 12;
+                } else if (modifier === 'AM' && hours24 === 12) {
+                    hours24 = 0; // 12 AM is hour 0
+                }
+                
+                return hours24;
+            } catch (e) {
+                console.error("Time parsing failed for:", timeStr, e);
+                return null;
+            }
+        };
+
+        // --- CALENDAR RENDERING (UPDATED FOR STICKINESS AND ALIGNMENT) --- 
+        const renderCalendar = () => {
+            const calendarGrid = document.getElementById('calendar-grid');
+            if (!calendarGrid) return;
+            calendarGrid.innerHTML = '';
+
+            const startOfWeek = getStartOfWeek(App.currentWeekStart);
+            
+            // 24 Hour Time Headers
+            const timeHeaderRow = document.createElement('div');
+            timeHeaderRow.className = 'flex'; 
+            
+            // Top-left corner placeholder - Z-index 30 ensures it's above both sticky axis
+            timeHeaderRow.innerHTML = '<div class="time-header z-30 bg-gray-200">Time / Day</div>'; 
+
+            // Time loop from 0 (12 AM) to 23 (11 PM)
+            for (let hour = 0; hour <= 23; hour++) {
+                const timeStr = hour === 0 ? '12 AM' 
+                                : hour < 12 ? `${hour} AM` 
+                                : hour === 12 ? '12 PM' 
+                                : `${hour - 12} PM`;
+                
+                timeHeaderRow.innerHTML += `
+                    <div class="time-header-slot text-center text-xs font-semibold text-gray-600">
+                        ${timeStr}
+                    </div>
+                `;
+            }
+            calendarGrid.appendChild(timeHeaderRow);
+
+            // 7 Days: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            
+            // Render Days (0 to 6)
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(startOfWeek);
+                date.setDate(startOfWeek.getDate() + i);
+                const dateStr = date.toISOString().substring(5, 10); 
+
+                const dayRow = document.createElement('div');
+                dayRow.className = 'flex items-stretch day-row';
+                
+                // First element is the sticky day label
+                dayRow.innerHTML = `<div class="time-header">${days[i]}<span class="text-gray-500 ml-1 font-normal">(${dateStr})</span></div>`;
+
+                // Hour loop from 0 to 23
+                for (let hour = 0; hour <= 23; hour++) {
+                    const timeKey = formatTimeKey(date, hour);
+                    const isUnavailable = App.unavailableTimes[timeKey];
+                    
+                    const slot = document.createElement('div');
+                    // time-slot class ensures fixed width for alignment
+                    slot.className = `time-slot rounded-sm 
+                                      ${isUnavailable ? 'unavailable' : 'available'}`;
+                    slot.dataset.timeKey = timeKey;
+                    slot.dataset.day = i + 1; 
+                    slot.dataset.hour = hour;
+                    
+                    slot.addEventListener('click', () => {
+                        toggleAvailability(slot, timeKey);
+                    });
+                    
+                    dayRow.appendChild(slot);
+                }
+                calendarGrid.appendChild(dayRow);
+            }
+
+            // Update week header
+            const weekStartStr = startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const weekEnd = new Date(startOfWeek);
+            weekEnd.setDate(startOfWeek.getDate() + 6); // End on Sunday
+            const weekEndStr = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            
+            document.getElementById('week-display').textContent = `${weekStartStr} - ${weekEndStr}`;
+        };
+
+        const toggleAvailability = (slot, timeKey) => {
+            if (App.unavailableTimes[timeKey]) {
+                delete App.unavailableTimes[timeKey];
+                slot.classList.remove('unavailable');
+                slot.classList.add('available');
+            } else {
+                App.unavailableTimes[timeKey] = true;
+                slot.classList.remove('available');
+                slot.classList.add('unavailable');
+            }
+        };
+
+        const changeWeek = (direction) => {
+            const nextWeek = new Date(App.currentWeekStart);
+            nextWeek.setDate(App.currentWeekStart.getDate() + (direction * 7));
+            App.currentWeekStart = nextWeek;
+            renderCalendar();
+        };
+
+        // --- INTERESTS RENDERING (No Change) ---
+        const renderInterests = () => {
+            const interestsContainer = document.getElementById('interests-container');
+            if (!interestsContainer) return;
+            interestsContainer.innerHTML = '';
+
+            App.interests.forEach(interest => {
+                const id = `interest-${interest.replace(/\s/g, '-')}`;
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'flex items-center';
+                checkboxDiv.innerHTML = `
+                    <input type="checkbox" id="${id}" value="${interest}" class="form-checkbox h-4 w-4 text-indigo-600 rounded">
+                    <label for="${id}" class="ml-2 text-gray-700">${interest}</label>
+                `;
+                const checkbox = checkboxDiv.querySelector('input');
+                
+                if (App.selectedInterests.has(interest)) {
+                    checkbox.checked = true;
+                }
+
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        App.selectedInterests.add(interest);
+                    } else {
+                        App.selectedInterests.delete(interest);
+                    }
+                });
+                interestsContainer.appendChild(checkboxDiv);
+            });
+        };
+        
+        // --- EVENT MATCHING LOGIC (No Change) ---
+        const findMatchingEvents = () => {
+            console.log("-> Executing findMatchingEvents..."); 
+            
+            const resultsContainer = document.getElementById('event-results-container'); 
+            resultsContainer.innerHTML = '<p class="text-center text-gray-500 font-semibold">Searching for conflict-free events...</p>';
+            
+            if (App.selectedInterests.size === 0) {
+                resultsContainer.innerHTML = '<p class="text-center text-red-500 font-semibold">Please select at least one interest to find events.</p>';
+                return;
+            }
+
+            const lowerSelectedInterests = new Set(
+                Array.from(App.selectedInterests).map(i => i.toLowerCase().trim())
+            );
+
+            const matchingEvents = App.allEvents.filter(event => {
+                const eventName = event.name || 'Unknown Event';
+
+                // 1. Check Interest Match
+                const rawTags = event.tags;
+                let eventTagsLowercased = [];
+
+                if (Array.isArray(rawTags)) {
+                    eventTagsLowercased = rawTags.map(tag => String(tag).toLowerCase().trim());
+                } else if (typeof rawTags === 'string') {
+                    eventTagsLowercased = rawTags.toLowerCase().split(/[,\s]+/).filter(tag => tag);
+                }
+                
+                const hasInterestMatch = eventTagsLowercased.some(tag => lowerSelectedInterests.has(tag));
+                
+                if (!hasInterestMatch) {
+                    return false; 
+                }
+                
+                // 2. Check Time Conflict
+                if (!event.date || !event.startTime || !event.endTime) {
+                    return false;
+                }
+
+                try {
+                    const eventDate = new Date(event.date); 
+                    
+                    if (isNaN(eventDate.getTime())) {
+                        return false;
+                    }
+
+                    // Determine event start and end hours in 24h format
+                    const startHour = parseTime(event.startTime);
+                    const endHour = parseTime(event.endTime);
+
+                    // Validation for time range
+                    if (startHour === null || endHour === null || startHour >= endHour || startHour < 0 || endHour > 24) {
+                        console.log(`[FILTERED] ${eventName}: Invalid time format or duration.`);
+                        return false;
+                    }
+                    
+                    // Check if event is in the current calendar week
+                    const currentWeekStart = getStartOfWeek(App.currentWeekStart);
+                    const currentWeekEnd = new Date(currentWeekStart);
+                    currentWeekEnd.setDate(currentWeekStart.getDate() + 7); 
+
+                    const eventDateOnly = new Date(event.date);
+                    eventDateOnly.setHours(0, 0, 0, 0);
+
+                    if (eventDateOnly < currentWeekStart || eventDateOnly >= currentWeekEnd) {
+                        return false;
+                    }
+
+                    // Loop through every hourly slot the event occupies
+                    for (let currentHour = startHour; currentHour < endHour; currentHour++) {
+                        
+                        const eventTimeKey = formatTimeKey(eventDate, currentHour);
+
+                        if (App.unavailableTimes[eventTimeKey]) {
+                            // Conflict found
+                            return false; 
+                        }
+                    }
+                    
+                    return true; // No conflicts found
+
+                } catch (e) {
+                    console.error("Error processing event date/time:", eventName, e);
+                    return false;
+                }
+            });
+
+            // Display Results
+            resultsContainer.innerHTML = ''; 
+            
+            if (matchingEvents.length === 0) {
+                resultsContainer.innerHTML = '<p class="text-center text-gray-500 font-semibold">No available events match your selected interests or schedule for this week.</p>';
+            } else {
+                let htmlContent = '';
+                matchingEvents.forEach(event => {
+                    const dateDisplay = new Date(event.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    
+                    htmlContent += `
+                        <div class="matched-event-box">
+                            <h3 class="text-lg font-bold text-indigo-900">${event.name}</h3>
+                            <p class="text-sm text-gray-700 mt-1">
+                                <span class="font-semibold">${event.club}</span> | 
+                                ${dateDisplay}, ${event.startTime} - ${event.endTime}
+                            </p>
+                            <p class="text-xs text-indigo-600 mt-2 font-mono">
+                                Tags: ${Array.isArray(event.tags) ? event.tags.join(', ') : event.tags}
+                            </p>
+                            <p class="mt-2 text-gray-800">${event.description}</p>
+                        </div>
+                    `;
+                });
+                resultsContainer.innerHTML = htmlContent;
+            }
+        };
+
+        // --- FIREBASE AND AUTH SETUP (No Change) ---
+        const setupFirebase = async () => {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            window.App.db = db;
+            window.App.auth = auth;
+
+            const signInUser = async () => {
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                
+                try {
+                    if (token) {
+                        await signInWithCustomToken(auth, token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Firebase Authentication failed:", error);
+                    console.warn("Continuing with temporary user ID. Write operations may be denied.");
+                    window.App.userId = crypto.randomUUID();
+                }
+            };
+            
+            if (!auth.currentUser) {
+                await signInUser();
+            }
+            
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    window.App.userId = user.uid;
+                } else if (!window.App.userId) {
+                    window.App.userId = crypto.randomUUID();
+                }
+
+                isAuthReady = true;
+                window.App.isAuthReady = true;
+                console.log("Auth is ready. User ID:", window.App.userId);
+                setupEventListener();
+            });
+        };
+
+        const setupEventListener = () => {
+            const eventsCollectionRef = collection(App.db, 'events');
+            
+            onSnapshot(eventsCollectionRef, (snapshot) => {
+                App.allEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log(`Loaded ${App.allEvents.length} events from Firestore.`);
+            }, (error) => {
+                console.error("Error setting up event listener:", error);
+                const roleDiv = document.getElementById('role-selection');
+                if (roleDiv) {
+                    roleDiv.innerHTML = 
+                        `<p class="text-red-600 font-bold">Error connecting to database (check console/security rules): ${error.message}</p>`;
+                }
+            });
+        };
+
+        const handleOrganizerSubmit = async (event) => {
+            event.preventDefault();
+            
+            const form = event.target;
+
+            const startHour = parseTime(form.eventStartTime.value);
+            const endHour = parseTime(form.eventEndTime.value);
+
+            const messageElement = document.getElementById('organizer-message');
+            messageElement.classList.remove('hidden', 'bg-green-500', 'bg-red-500', 'bg-indigo-500');
+            
+            if (startHour === null || endHour === null || startHour >= endHour || startHour < 0 || endHour > 24) {
+                messageElement.textContent = "Invalid Start/End Time. Must be a valid AM/PM format (e.g., 9:00 AM) and End Time must be later than Start Time.";
+                messageElement.classList.add('bg-red-500');
+                return;
+            }
+
+            const eventData = {
+                name: form.eventName.value,
+                club: form.clubName.value,
+                date: form.eventDate.value,
+                startTime: form.eventStartTime.value,
+                endTime: form.eventEndTime.value,
+                description: form.eventDescription.value,
+                tags: form.eventTags.value.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0), 
+                createdAt: Timestamp.now()
+            };
+            
+            messageElement.textContent = "Posting event...";
+            messageElement.classList.add('bg-indigo-500');
+
+            if (!App.isAuthReady || !App.db) {
+                messageElement.textContent = "Database connection not ready. Please wait a moment.";
+                messageElement.classList.remove('bg-indigo-500');
+                messageElement.classList.add('bg-red-500');
+                return;
+            }
+
+            try {
+                const eventsCollectionRef = collection(App.db, 'events');
+                await addDoc(eventsCollectionRef, eventData);
+                
+                form.reset();
+                messageElement.textContent = "Event successfully added!";
+                messageElement.classList.remove('bg-indigo-500', 'bg-red-500');
+                messageElement.classList.add('bg-green-500');
+                setTimeout(() => {
+                    messageElement.classList.add('hidden');
+                }, 3000);
+
+            } catch (error) {
+                console.error("Error adding document (PERMISSION DENIED likely): ", error);
+                messageElement.textContent = `Error: ${error.message}. Check Firebase Console -> Firestore -> Rules.`;
+                messageElement.classList.remove('bg-indigo-500', 'bg-green-500');
+                messageElement.classList.add('bg-red-500');
+            }
+        };
+
+        // --- UI TOGGLING AND INITIALIZATION ---
+        const showView = (viewId) => {
+            document.getElementById('role-selection').classList.add('hidden');
+            document.getElementById('student-view').classList.add('hidden');
+            document.getElementById('organizer-view').classList.add('hidden');
+            
+            document.getElementById(viewId).classList.remove('hidden');
+            document.getElementById(viewId).classList.add('block');
+            
+            if (viewId === 'student-view') {
+                renderCalendar();
+                renderInterests();
+            }
+        };
+        
+        // Setup function to run after the DOM loads
+        window.onload = () => {
+            setupFirebase();
+
+            document.getElementById('btn-student').addEventListener('click', () => showView('student-view'));
+            document.getElementById('btn-organizer').addEventListener('click', () => showView('organizer-view'));
+            document.getElementById('prev-week').addEventListener('click', () => changeWeek(-1));
+            document.getElementById('next-week').addEventListener('click', () => changeWeek(1));
+            
+            document.getElementById('find-events-btn').addEventListener('click', () => {
+                console.log("--- Find Events Button Clicked ---");
+                findMatchingEvents();
+            });
+
+            document.getElementById('organizer-form').addEventListener('submit', handleOrganizerSubmit);
+
+            App.currentWeekStart = getStartOfWeek(new Date());
+        };
+        
+        window.changeWeek = changeWeek;
+    </script>
+</head>
+
+<body class="p-4 md:p-8 min-h-screen">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-extrabold text-gray-900 text-center mb-8">
+            Campus Event Matcher
+        </h1>
+
+        <!-- ROLE SELECTION VIEW -->
+        <div id="role-selection" class="card text-center max-w-lg mx-auto">
+            <h2 class="text-xl font-semibold mb-6">Choose Your Role</h2>
+            <div class="flex flex-col space-y-4">
+                <button id="btn-student" class="btn-primary">
+                    I am a Student (Find Events)
+                </button>
+                <button id="btn-organizer" class="btn-primary bg-green-600 hover:bg-green-700">
+                    I am a Club Organizer (Post Event)
+                </button>
+            </div>
+        </div>
+
+        <!-- STUDENT VIEW -->
+        <div id="student-view" class="hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Student Dashboard</h2>
+
+            <!-- CALENDAR -->
+            <div class="card mb-8">
+                <h3 class="text-xl font-semibold mb-4 text-gray-700">1. Mark Unavailable Times (Mon-Sun, 24 Hours)</h3>
+                
+                <!-- Week Navigator -->
+                <div class="flex justify-between items-center mb-4">
+                    <button id="prev-week" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <span id="week-display" class="font-bold text-lg text-gray-700"></span>
+                    <button id="next-week" class="p-2 rounded-full bg-gray-200 hover:bg-gray-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                </div>
+
+                <!-- Calendar Scroll Container - Only horizontal scroll should be needed now -->
+                <div id="calendar-scroll-container" class="bg-gray-100 rounded-lg shadow-inner">
+                    <!-- Calendar Grid (This holds the sticky elements and the content) -->
+                    <div id="calendar-grid" class="p-0">
+                        <!-- Calendar content rendered by JS -->
+                    </div>
+                </div>
+                
+                <p class="text-xs mt-2 text-gray-500">Click on an hourly block to mark yourself unavailable (Red). Scroll horizontally to see all 24 hours.</p>
+            </div>
+
+            <!-- INTERESTS -->
+            <div class="card mb-8">
+                <h3 class="text-xl font-semibold mb-4 text-gray-700">2. Select Interests</h3>
+                <div id="interests-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    <!-- Checkboxes rendered by JS -->
+                </div>
+            </div>
+
+            <!-- FIND EVENTS BUTTON -->
+            <button id="find-events-btn" class="btn-primary mb-10">
+                3. Find Conflict-Free Events
+            </button>
+
+            <!-- EVENT RESULTS -->
+            <div class="mt-8">
+                <h3 class="text-2xl font-bold text-gray-800 mb-4">Matching Events</h3>
+                <!-- Results container with scrollable style (max-height applied via CSS) -->
+                <div id="event-results-container" class="space-y-4">
+                    <p class="text-center text-gray-500 font-semibold">
+                        Select your interests, mark your schedule, and click the button above to find matching events.
+                    </p>
+                    <!-- Events will be displayed here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ORGANIZER VIEW -->
+        <div id="organizer-view" class="hidden max-w-xl mx-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Club Organizer: Post Event</h2>
+            
+            <div id="organizer-message" class="hidden p-3 mb-4 text-sm font-semibold text-white rounded-lg text-center"></div>
+
+            <form id="organizer-form" class="card space-y-4">
+                <div>
+                    <label for="eventName" class="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
+                    <input type="text" id="eventName" name="eventName" required class="input-style" placeholder="e.g., Python Workshop">
+                </div>
+                
+                <div>
+                    <label for="clubName" class="block text-sm font-medium text-gray-700 mb-1">Club Name</label>
+                    <input type="text" id="clubName" name="clubName" required class="input-style" placeholder="e.g., Tech Club">
+                </div>
+
+                <div class="flex space-x-4">
+                    <div class="w-1/3">
+                        <label for="eventDate" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                        <input type="date" id="eventDate" name="eventDate" required class="input-style">
+                    </div>
+                    <div class="w-1/3">
+                        <label for="eventStartTime" class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                        <input type="text" id="eventStartTime" name="eventStartTime" required class="input-style" placeholder="e.g., 5:00 PM">
+                    </div>
+                    <div class="w-1/3">
+                        <label for="eventEndTime" class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                        <input type="text" id="eventEndTime" name="eventEndTime" required class="input-style" placeholder="e.g., 7:00 PM">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="eventTags" class="block text-sm font-medium text-gray-700 mb-1">Interests/Tags (Comma separated)</label>
+                    <input type="text" id="eventTags" name="eventTags" required class="input-style" placeholder="e.g., technology, coding, networking">
+                    <p class="text-xs mt-1 text-gray-500">These tags are matched against student interests.</p>
+                </div>
+
+                <div>
+                    <label for="eventDescription" class="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
+                    <textarea id="eventDescription" name="eventDescription" rows="3" required class="input-style" placeholder="A brief summary of what the event is about..."></textarea>
+                </div>
+                
+                <button type="submit" class="btn-primary bg-indigo-600 hover:bg-indigo-700">
+                    Post Event
+                </button>
+            </form>
+        </div>
+
+    </div>
+</body>
+</html>
