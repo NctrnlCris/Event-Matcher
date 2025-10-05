@@ -460,7 +460,7 @@ const attachListener = (id, eventType, handler) => {
     if (element) {
         element.addEventListener(eventType, handler);
     } else {
-        console.error(`Element not found for ID: ${id}. Cannot attach listener. This is likely why the buttons are failing.`);
+        console.error(`Element not found for ID: ${id}. Cannot attach listener`);
     }
 };
 
